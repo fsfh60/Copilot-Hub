@@ -8,8 +8,13 @@ on:
 permissions:
   contents: write
 
+env:
+  DOTNET_VERSION: '10.0.x'
+  PROJECT: CopilotHub.App
+
 jobs:
-  build-and-release:
+  test:
+    name: Run Tests
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,7 +22,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: ${{ env.DOTNET_VERSION }}
           dotnet-quality: 'preview'
 
       - name: Restore
@@ -29,17 +34,88 @@ jobs:
       - name: Test
         run: dotnet test -c Release --no-build --verbosity normal
 
-      - name: Publish self-contained exe
+  build:
+    name: Build ${{ matrix.rid }}
+    needs: test
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            artifact: CopilotHub-windows-x64
+            exe_name: CopilotHub.exe
+          - rid: win-arm64
+            artifact: CopilotHub-windows-arm64
+            exe_name: CopilotHub.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: 'preview'
+
+      - name: Publish
         run: >
-          dotnet publish CopilotHub.App -c Release -r win-x64
+          dotnet publish ${{ env.PROJECT }} -c Release -r ${{ matrix.rid }}
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
-          -o ./publish
+          -p:DebugType=none
+          -p:DebugSymbols=false
+          -o ./publish/${{ matrix.rid }}
 
-      - name: Create release zip
-        run: Compress-Archive -Path ./publish/* -DestinationPath ./CopilotHub-${{ github.ref_name }}-win-x64.zip
+      - name: Rename exe with version
+        run: |
+          $tag = "${{ github.ref_name }}"
+          Copy-Item "./publish/${{ matrix.rid }}/CopilotHub.App.exe" "./publish/${{ matrix.rid }}/${{ matrix.exe_name }}"
+
+      - name: Create zip
+        run: |
+          $tag = "${{ github.ref_name }}"
+          Compress-Archive -Path "./publish/${{ matrix.rid }}/${{ matrix.exe_name }}" -DestinationPath "./publish/${{ matrix.artifact }}-$tag.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ./publish/${{ matrix.rid }}/${{ matrix.exe_name }}
+            ./publish/${{ matrix.artifact }}-${{ github.ref_name }}.zip
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Prepare release assets
+        run: |
+          TAG="${{ github.ref_name }}"
+          mkdir -p release
+
+          # Windows x64
+          cp ./artifacts/CopilotHub-windows-x64/publish/win-x64/CopilotHub.exe           "release/CopilotHub.exe"
+          cp ./artifacts/CopilotHub-windows-x64/publish/win-x64/CopilotHub.exe           "release/CopilotHub-${TAG}-windows-x64.exe"
+          cp ./artifacts/CopilotHub-windows-x64/publish/CopilotHub-windows-x64-${TAG}.zip "release/CopilotHub-${TAG}-windows-x64.zip"
+
+          # Windows ARM64
+          cp ./artifacts/CopilotHub-windows-arm64/publish/win-arm64/CopilotHub.exe        "release/CopilotHub-${TAG}-windows-arm64.exe"
+          cp ./artifacts/CopilotHub-windows-arm64/publish/CopilotHub-windows-arm64-${TAG}.zip "release/CopilotHub-${TAG}-windows-arm64.zip"
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd release
+          sha256sum * > checksums-sha256.txt
+          cat checksums-sha256.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -48,20 +124,37 @@ jobs:
           body: |
             ## CopilotHub ${{ github.ref_name }}
 
-            ### Download
-            - **CopilotHub-${{ github.ref_name }}-win-x64.zip** — Self-contained Windows x64 executable (no .NET install needed)
+            ### ⚡ Quick Install
+
+            **Windows (PowerShell):**
+            ```powershell
+            irm https://raw.githubusercontent.com/fsfh60/Copilot-Hub/main/install.ps1 | iex
+            ```
+
+            **Direct download (x64):**
+            ```powershell
+            curl -L -o CopilotHub.exe https://github.com/fsfh60/Copilot-Hub/releases/latest/download/CopilotHub.exe
+            ```
+
+            ### 📦 Downloads
+
+            | Platform | File | Type |
+            |----------|------|------|
+            | Windows x64 | [`CopilotHub.exe`](https://github.com/fsfh60/Copilot-Hub/releases/download/${{ github.ref_name }}/CopilotHub.exe) | Standalone exe |
+            | Windows x64 | [`CopilotHub-${{ github.ref_name }}-windows-x64.zip`](https://github.com/fsfh60/Copilot-Hub/releases/download/${{ github.ref_name }}/CopilotHub-${{ github.ref_name }}-windows-x64.zip) | Zip archive |
+            | Windows ARM64 | [`CopilotHub-${{ github.ref_name }}-windows-arm64.exe`](https://github.com/fsfh60/Copilot-Hub/releases/download/${{ github.ref_name }}/CopilotHub-${{ github.ref_name }}-windows-arm64.exe) | Standalone exe |
+            | Windows ARM64 | [`CopilotHub-${{ github.ref_name }}-windows-arm64.zip`](https://github.com/fsfh60/Copilot-Hub/releases/download/${{ github.ref_name }}/CopilotHub-${{ github.ref_name }}-windows-arm64.zip) | Zip archive |
+            | Checksums | [`checksums-sha256.txt`](https://github.com/fsfh60/Copilot-Hub/releases/download/${{ github.ref_name }}/checksums-sha256.txt) | SHA256 verification |
+
+            ### ✅ Verify Download
+            ```powershell
+            (Get-FileHash CopilotHub.exe -Algorithm SHA256).Hash
+            # Compare with checksums-sha256.txt
+            ```
 
             ### Requirements
             - Windows 10/11
             - [GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) installed and authenticated
-
-            ### What's included
-            - Multi-session Copilot tabs with model selection
-            - Live output streaming
-            - File change tracking + editor
-            - Side-by-side diff viewer
-            - Embedded PowerShell terminal
-            - Windows theme auto-detection (light/dark)
           files: |
-            ./CopilotHub-${{ github.ref_name }}-win-x64.zip
+            release/*
           generate_release_notes: true

@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using CopilotHub.App.Controls;
 using CopilotHub.App.ViewModels;
 
 namespace CopilotHub.App;
@@ -14,47 +15,85 @@ public partial class MainWindow : Window
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
 
-    private void CopilotInput_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        if (e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift
-            && sender is TextBox tb && !string.IsNullOrWhiteSpace(tb.Text))
+        if (ViewModel is not null)
+            ViewModel.ConsoleSwapRequested += OnConsoleSwapRequested;
+        UpdateVisibility();
+    }
+
+    private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+    {
+        // Kill all session processes on close
+        if (ViewModel is not null)
         {
-            ViewModel?.SendCopilotInputCommand.Execute(tb.Text);
-            // Clear via the bound property
-            if (tb.DataContext is SessionTabViewModel stvm)
-                stvm.CopilotInputText = string.Empty;
-            e.Handled = true;
+            ViewModel.ConsoleSwapRequested -= OnConsoleSwapRequested;
+            foreach (var session in ViewModel.Sessions)
+                session.KillAllProcesses();
+        }
+        ConsoleHost.ReleaseConsole();
+    }
+
+    private void OnConsoleSwapRequested()
+    {
+        Dispatcher.Invoke(SwapToActiveConsole);
+    }
+
+    private void SwapToActiveConsole()
+    {
+        var session = ViewModel?.SelectedSession;
+        UpdateVisibility();
+
+        if (session is null || session.IsFileEditorActive)
+        {
+            ConsoleHost.ReleaseConsole();
+            return;
+        }
+
+        var hwnd = session.GetActiveConsoleHwnd();
+        if (hwnd != IntPtr.Zero)
+        {
+            ConsoleHost.EmbedConsoleWindow(hwnd);
+            ConsoleHost.FocusConsole();
+        }
+        else
+        {
+            ConsoleHost.ReleaseConsole();
         }
     }
 
-    private void SendButton_Click(object sender, RoutedEventArgs e)
+    private void UpdateVisibility()
     {
-        // Clear the input after send
-        if (ViewModel?.SelectedSession is SessionTabViewModel stvm)
-            stvm.CopilotInputText = string.Empty;
+        var hasSession = ViewModel?.SelectedSession is not null;
+        var isEditing = ViewModel?.SelectedSession?.IsFileEditorActive == true;
+
+        NoSessionPlaceholder.Visibility = hasSession ? Visibility.Collapsed : Visibility.Visible;
+        FileEditorPanel.Visibility = isEditing ? Visibility.Visible : Visibility.Collapsed;
+        ConsoleHost.Visibility = (hasSession && !isEditing) ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void TerminalInput_KeyDown(object sender, KeyEventArgs e)
+    private void SessionTab_Click(object sender, MouseButtonEventArgs e)
     {
-        if (e.Key == Key.Enter && sender is TextBox tb && !string.IsNullOrWhiteSpace(tb.Text))
+        if (sender is FrameworkElement fe && fe.DataContext is SessionTabViewModel tab && ViewModel is not null)
         {
-            ViewModel?.SendTerminalCommandCommand.Execute(tb.Text);
-            tb.Clear();
-            e.Handled = true;
+            ViewModel.SelectedSession = tab;
         }
     }
 
-    private void RunButton_Click(object sender, RoutedEventArgs e)
+    private void ConsoleType_Checked(object sender, RoutedEventArgs e)
     {
-        TerminalInput?.Clear();
+        if (sender is RadioButton rb && rb.Tag is string typeStr && ViewModel is not null)
+        {
+            ViewModel.SwitchConsoleTypeCommand.Execute(typeStr);
+        }
     }
 
-    private void FileTab_Click(object sender, MouseButtonEventArgs e)
+    private void BackToConsole_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement fe && fe.DataContext is OpenFileTab fileTab
-            && ViewModel?.SelectedSession is not null)
+        if (ViewModel?.SelectedSession is not null)
         {
-            ViewModel.SelectedSession.SelectedFile = fileTab;
+            ViewModel.SelectedSession.IsFileEditorActive = false;
+            SwapToActiveConsole();
         }
     }
 }

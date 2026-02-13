@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CopilotHub.App.Controls;
 using CopilotHub.App.Services;
 using CopilotHub.Core.Models;
 using CopilotHub.Core.Services;
@@ -12,11 +13,9 @@ namespace CopilotHub.App.ViewModels;
 public partial class MainViewModel : ObservableObject
 {
     private readonly ISessionManager _sessionManager;
-    private readonly ICopilotProcessService _copilotService;
     private readonly IFileChangeTracker _fileChangeTracker;
     private readonly IGitService _gitService;
     private readonly IDiffService _diffService;
-    private readonly ITerminalService _terminalService;
     private readonly INotificationService _notificationService;
     private readonly IDispatcherService _dispatcher;
     private readonly ILogger _logger = Log.ForContext<MainViewModel>();
@@ -43,30 +42,33 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isDiffVisible;
 
+    /// <summary>Raised when the active console should be swapped in the UI.</summary>
+    public event Action? ConsoleSwapRequested;
+
     public MainViewModel(
         ISessionManager sessionManager,
-        ICopilotProcessService copilotService,
         IFileChangeTracker fileChangeTracker,
         IGitService gitService,
         IDiffService diffService,
-        ITerminalService terminalService,
         INotificationService notificationService,
         IDispatcherService dispatcher,
         ThemeService theme)
     {
         _sessionManager = sessionManager;
-        _copilotService = copilotService;
         _fileChangeTracker = fileChangeTracker;
         _gitService = gitService;
         _diffService = diffService;
-        _terminalService = terminalService;
         _notificationService = notificationService;
         _dispatcher = dispatcher;
         Theme = theme;
 
         _sessionManager.SessionCompleted += OnSessionCompleted;
         _fileChangeTracker.FileChanged += OnFileChanged;
-        _terminalService.OutputReceived += OnTerminalOutput;
+    }
+
+    partial void OnSelectedSessionChanged(SessionTabViewModel? value)
+    {
+        ConsoleSwapRequested?.Invoke();
     }
 
     [RelayCommand]
@@ -91,29 +93,53 @@ public partial class MainViewModel : ObservableObject
 
             _fileChangeTracker.StartTracking(session.Id, dialog.SelectedDirectory);
 
-            try { await _terminalService.StartAsync(session.Id, dialog.SelectedDirectory); }
-            catch (Exception ex) { _logger.Warning(ex, "Failed to start terminal for session {Id}", session.Id); }
-
-            _ = Task.Run(async () =>
-            {
-                try { await _copilotService.StartSessionAsync(session); }
-                catch (Exception ex)
-                {
-                    _logger.Error(ex, "Copilot process failed for session {Id}", session.Id);
-                    _dispatcher.Invoke(() => session.OutputLog.Add($"[ERROR] Copilot failed: {ex.Message}"));
-                }
-            });
+            // Start native console processes in background
+            _ = StartNativeConsolesAsync(tabVm);
         }
         catch (Exception ex) { _logger.Error(ex, "Failed to create new session"); }
+    }
+
+    private async Task StartNativeConsolesAsync(SessionTabViewModel tabVm)
+    {
+        var dir = tabVm.Session.WorkingDirectory;
+        var model = tabVm.Session.CopilotModel;
+        var extraArgs = tabVm.Session.CopilotExtraArgs;
+
+        // Find PowerShell 7+ or fall back to Windows PowerShell
+        var pwshExe = File.Exists(@"C:\Program Files\PowerShell\7\pwsh.exe")
+            ? @"C:\Program Files\PowerShell\7\pwsh.exe" : "powershell.exe";
+
+        // Start CMD
+        var (cmdProc, cmdHwnd) = await NativeConsoleHost.StartConsoleProcessAsync("cmd.exe", "", dir);
+        if (cmdProc != null)
+            tabVm.ConsoleProcesses.Add(new ConsoleProcessInfo
+                { Type = ConsoleType.Cmd, Process = cmdProc, ConsoleHwnd = cmdHwnd });
+
+        // Start PowerShell
+        var (psProc, psHwnd) = await NativeConsoleHost.StartConsoleProcessAsync(pwshExe, $"-NoLogo -WorkingDirectory \"{dir}\"", dir);
+        if (psProc != null)
+            tabVm.ConsoleProcesses.Add(new ConsoleProcessInfo
+                { Type = ConsoleType.PowerShell, Process = psProc, ConsoleHwnd = psHwnd });
+
+        // Start Copilot CLI (real interactive session)
+        var copilotArgs = $"--model {model}";
+        if (!string.IsNullOrWhiteSpace(extraArgs))
+            copilotArgs += $" {extraArgs}";
+        var (copilotProc, copilotHwnd) = await NativeConsoleHost.StartConsoleProcessAsync("copilot", copilotArgs, dir);
+        if (copilotProc != null)
+            tabVm.ConsoleProcesses.Add(new ConsoleProcessInfo
+                { Type = ConsoleType.Copilot, Process = copilotProc, ConsoleHwnd = copilotHwnd });
+
+        // Notify UI to embed the active console
+        _dispatcher.Invoke(() => ConsoleSwapRequested?.Invoke());
     }
 
     [RelayCommand]
     private void CloseSession(SessionTabViewModel? tab)
     {
         if (tab is null) return;
-        _copilotService.StopSession(tab.Session.Id);
+        tab.KillAllProcesses();
         _fileChangeTracker.StopTracking(tab.Session.Id);
-        _terminalService.Stop(tab.Session.Id);
         _sessionManager.RemoveSession(tab.Session.Id);
         Sessions.Remove(tab);
         if (SelectedSession == tab)
@@ -121,22 +147,15 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task SendCopilotInputAsync(string? input)
+    private void SwitchConsoleType(string? typeStr)
     {
-        if (string.IsNullOrWhiteSpace(input) || SelectedSession is null) return;
-        _ = Task.Run(async () =>
+        if (SelectedSession is null || typeStr is null) return;
+        if (Enum.TryParse<ConsoleType>(typeStr, out var type))
         {
-            try { await _copilotService.SendInputAsync(SelectedSession.Session.Id, input); }
-            catch (Exception ex) { _logger.Error(ex, "Error sending copilot input"); }
-        });
-    }
-
-    [RelayCommand]
-    private async Task SendTerminalCommandAsync(string? command)
-    {
-        if (string.IsNullOrWhiteSpace(command) || SelectedSession is null) return;
-        try { await _terminalService.SendCommandAsync(SelectedSession.Session.Id, command); }
-        catch (Exception ex) { _logger.Error(ex, "Error sending terminal command"); }
+            SelectedSession.ActiveConsoleType = type;
+            SelectedSession.IsFileEditorActive = false;
+            ConsoleSwapRequested?.Invoke();
+        }
     }
 
     [RelayCommand]
@@ -144,6 +163,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(filePath) || SelectedSession is null) return;
         SelectedSession.OpenFile(filePath);
+        ConsoleSwapRequested?.Invoke();
     }
 
     [RelayCommand]
@@ -218,15 +238,6 @@ public partial class MainViewModel : ObservableObject
             }
             var tab = Sessions.FirstOrDefault(s => s.Session.Id == e.SessionId);
             if (tab is not null) tab.HasFileIndicator = true;
-        });
-    }
-
-    private void OnTerminalOutput(object? sender, TerminalOutputEventArgs e)
-    {
-        _dispatcher.Invoke(() =>
-        {
-            var tab = Sessions.FirstOrDefault(s => s.Session.Id == e.SessionId);
-            tab?.TerminalOutput.Add(e.Text);
         });
     }
 }

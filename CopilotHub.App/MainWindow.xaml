@@ -4,234 +4,213 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:CopilotHub.App.ViewModels"
-        xmlns:svc="clr-namespace:CopilotHub.App.Services"
+        xmlns:controls="clr-namespace:CopilotHub.App.Controls"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="CopilotHub" Height="800" Width="1280"
         WindowStartupLocation="CenterScreen"
-        Background="{Binding Theme.WindowBg}">
+        Background="{Binding Theme.WindowBg}"
+        Loaded="Window_Loaded" Closing="Window_Closing">
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="3*"/>
-            <RowDefinition Height="5"/>
-            <RowDefinition Height="*" MinHeight="120"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Toolbar -->
-        <Border Grid.Row="0" Background="{Binding Theme.PanelBg}" Padding="8,6">
-            <Button Content="＋ New Session" Command="{Binding NewSessionCommand}" 
-                    Padding="14,6" Cursor="Hand" FontWeight="SemiBold"
-                    Background="{Binding Theme.AccentBrush}" Foreground="White" BorderThickness="0">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Button.Template>
-            </Button>
+        <!-- Row 0: Session toolbar -->
+        <Border Grid.Row="0" Background="{Binding Theme.PanelBg}" Padding="6,4">
+            <DockPanel>
+                <Button DockPanel.Dock="Left" Content="＋ New Session" Command="{Binding NewSessionCommand}"
+                        Padding="14,6" Cursor="Hand" FontWeight="SemiBold"
+                        Background="{Binding Theme.AccentBrush}" Foreground="White" BorderThickness="0">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+                <!-- Session tab buttons -->
+                <ItemsControl DockPanel.Dock="Left" ItemsSource="{Binding Sessions}" Margin="8,0,0,0">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:SessionTabViewModel}">
+                            <Border Margin="2,0" Padding="10,4" CornerRadius="4" Cursor="Hand"
+                                    BorderThickness="1" MouseLeftButtonDown="SessionTab_Click"
+                                    BorderBrush="{Binding DataContext.Theme.BorderBrush, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="8" Height="8" Margin="0,0,6,0"
+                                             Fill="{Binding Session.Status, Converter={StaticResource StatusToBrush}}"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                               Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <TextBlock Text=" ●" Foreground="#FFA726" FontSize="10" VerticalAlignment="Center"
+                                               Visibility="{Binding HasFileIndicator, Converter={StaticResource BoolToVisibility}}"/>
+                                    <Button Content="✕" Margin="8,0,0,0" Padding="4,0" FontSize="11"
+                                            Cursor="Hand" VerticalAlignment="Center"
+                                            Background="Transparent" Foreground="{Binding DataContext.Theme.DimForeground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            BorderThickness="0"
+                                            Command="{Binding DataContext.CloseSessionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Foreground" Value="Red"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </DockPanel>
         </Border>
 
-        <!-- Main content -->
-        <Grid Grid.Row="1">
+        <!-- Row 1: Console type selector -->
+        <Border Grid.Row="1" Background="{Binding Theme.SurfaceBg}" Padding="6,3"
+                BorderBrush="{Binding Theme.BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="RbCopilot" GroupName="ConsoleType" Content="🤖 Copilot" IsChecked="True"
+                             Foreground="{Binding Theme.Foreground}" Margin="0,0,4,0"
+                             Padding="10,4" Cursor="Hand" Checked="ConsoleType_Checked" Tag="Copilot">
+                    <RadioButton.Template>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="Bd" CornerRadius="3" Padding="{TemplateBinding Padding}"
+                                    Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </RadioButton.Template>
+                </RadioButton>
+                <RadioButton x:Name="RbCmd" GroupName="ConsoleType" Content="⬛ CMD"
+                             Foreground="{Binding Theme.Foreground}" Margin="0,0,4,0"
+                             Padding="10,4" Cursor="Hand" Checked="ConsoleType_Checked" Tag="Cmd">
+                    <RadioButton.Template>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="Bd" CornerRadius="3" Padding="{TemplateBinding Padding}"
+                                    Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </RadioButton.Template>
+                </RadioButton>
+                <RadioButton x:Name="RbPs" GroupName="ConsoleType" Content="🔷 PowerShell"
+                             Foreground="{Binding Theme.Foreground}" Margin="0,0,4,0"
+                             Padding="10,4" Cursor="Hand" Checked="ConsoleType_Checked" Tag="PowerShell">
+                    <RadioButton.Template>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Border x:Name="Bd" CornerRadius="3" Padding="{TemplateBinding Padding}"
+                                    Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </RadioButton.Template>
+                </RadioButton>
+                <!-- Working directory display -->
+                <TextBlock Margin="16,0,0,0" VerticalAlignment="Center"
+                           Foreground="{Binding Theme.DimForeground}"
+                           FontFamily="Cascadia Code,Consolas" FontSize="12"
+                           Text="{Binding SelectedSession.Session.WorkingDirectory}" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Row 2: Main content (console + files panel) -->
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="5"/>
                 <ColumnDefinition Width="260"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Session tabs -->
-            <TabControl Grid.Column="0" 
-                        ItemsSource="{Binding Sessions}" 
-                        SelectedItem="{Binding SelectedSession}"
-                        Background="{Binding Theme.WindowBg}" 
-                        BorderBrush="{Binding Theme.BorderBrush}"
-                        Padding="0">
-                <TabControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:SessionTabViewModel}">
-                        <StackPanel Orientation="Horizontal" Margin="2,0">
-                            <Ellipse Width="8" Height="8" Margin="0,0,6,0"
-                                     Fill="{Binding Session.Status, Converter={StaticResource StatusToBrush}}"/>
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
-                                       Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"/>
-                            <TextBlock Text=" ●" Foreground="#FFA726" FontSize="10" VerticalAlignment="Center"
-                                       Visibility="{Binding HasFileIndicator, Converter={StaticResource BoolToVisibility}}"/>
-                            <Button Content="✕" Margin="8,0,0,0" Padding="4,0" FontSize="11"
-                                    Cursor="Hand" VerticalAlignment="Center"
-                                    Background="Transparent" Foreground="{Binding DataContext.Theme.DimForeground, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    BorderThickness="0"
-                                    Command="{Binding DataContext.CloseSessionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                    CommandParameter="{Binding}">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Foreground" Value="Red"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Button.Template>
-                            </Button>
-                        </StackPanel>
-                    </DataTemplate>
-                </TabControl.ItemTemplate>
-                <TabControl.ContentTemplate>
-                    <DataTemplate DataType="{x:Type vm:SessionTabViewModel}">
-                        <Grid Background="{Binding DataContext.Theme.WindowBg, RelativeSource={RelativeSource AncestorType=Window}}">
-                            <!-- Copilot output view -->
-                            <Grid Visibility="{Binding IsFileEditorActive, Converter={StaticResource InverseBoolToVisibility}}">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+            <!-- Native console host (persistent, single instance — we swap console windows) -->
+            <controls:NativeConsoleHost Grid.Column="0" x:Name="ConsoleHost"/>
 
-                                <!-- Smooth scrolling output -->
-                                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" 
-                                              CanContentScroll="False"
-                                              Background="{Binding DataContext.Theme.WindowBg, RelativeSource={RelativeSource AncestorType=Window}}">
-                                    <ItemsControl ItemsSource="{Binding OutputLog}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Padding="8,1"
-                                                           Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                           FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"/>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </ScrollViewer>
+            <!-- File editor overlay (shown when editing a file) -->
+            <Grid Grid.Column="0" x:Name="FileEditorPanel" Visibility="Collapsed"
+                  Background="{Binding Theme.WindowBg}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Border Grid.Row="0" Background="{Binding Theme.PanelBg}">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="◀ Back to Console" Margin="4,2" Padding="8,4" Cursor="Hand"
+                                Background="Transparent" BorderThickness="0"
+                                Foreground="{Binding Theme.AccentBrush}"
+                                Click="BackToConsole_Click">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="3">
+                                        <ContentPresenter/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Text="{Binding SelectedSession.SelectedFile.FileName}" VerticalAlignment="Center"
+                                   Foreground="{Binding Theme.Foreground}" FontWeight="SemiBold" Margin="8,0"/>
+                    </StackPanel>
+                </Border>
+                <TextBox Grid.Row="1"
+                         Text="{Binding SelectedSession.SelectedFile.Content, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                         FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                         Background="{Binding Theme.EditorBg}"
+                         Foreground="{Binding Theme.Foreground}"
+                         CaretBrush="{Binding Theme.Foreground}"
+                         BorderThickness="0" Padding="8,4"/>
+            </Grid>
 
-                                <!-- Multiline prompt area -->
-                                <Border Grid.Row="1" Background="{Binding DataContext.Theme.PanelBg, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        BorderBrush="{Binding DataContext.Theme.BorderBrush, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        BorderThickness="0,1,0,0" Padding="6">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="Copilot ▸" 
-                                                   Foreground="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}" 
-                                                   VerticalAlignment="Top" Margin="4,6,8,0"
-                                                   FontFamily="Cascadia Code,Consolas" FontWeight="SemiBold"/>
-                                        <TextBox Grid.Column="1"
-                                                 Text="{Binding CopilotInputText, UpdateSourceTrigger=PropertyChanged}"
-                                                 MinHeight="50" MaxHeight="120"
-                                                 AcceptsReturn="True" TextWrapping="Wrap"
-                                                 VerticalScrollBarVisibility="Auto"
-                                                 FontFamily="Cascadia Code,Consolas,Courier New"
-                                                 Background="{Binding DataContext.Theme.InputBg, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                 Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                 BorderBrush="{Binding DataContext.Theme.InputBorder, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                 CaretBrush="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                 Padding="6,4"
-                                                 PreviewKeyDown="CopilotInput_PreviewKeyDown"/>
-                                        <Button Grid.Column="2" Content="Send" VerticalAlignment="Bottom"
-                                                Padding="14,8" Margin="6,0,0,0" Cursor="Hand"
-                                                Background="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Foreground="White" BorderThickness="0"
-                                                Command="{Binding DataContext.SendCopilotInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding CopilotInputText}"
-                                                Click="SendButton_Click">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                    </Border>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </Grid>
-                                </Border>
-                            </Grid>
+            <!-- Placeholder when no session -->
+            <TextBlock Grid.Column="0" x:Name="NoSessionPlaceholder"
+                       Text="Click '＋ New Session' to start a Copilot session"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{Binding Theme.DimForeground}" FontSize="16"/>
 
-                            <!-- File editor view -->
-                            <Grid Visibility="{Binding IsFileEditorActive, Converter={StaticResource BoolToVisibility}}">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-
-                                <!-- File sub-tabs -->
-                                <Border Grid.Row="0" Background="{Binding DataContext.Theme.PanelBg, RelativeSource={RelativeSource AncestorType=Window}}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Button Content="◀ Copilot" Margin="4,2" Padding="8,4" Cursor="Hand"
-                                                Background="Transparent" BorderThickness="0"
-                                                Foreground="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                Command="{Binding ShowCopilotOutputCommand}">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                        <ItemsControl ItemsSource="{Binding OpenFiles}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="{x:Type vm:OpenFileTab}">
-                                                    <Border Margin="1,2" Padding="8,4" CornerRadius="3" Cursor="Hand"
-                                                            Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            MouseLeftButtonDown="FileTab_Click">
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <TextBlock Text="{Binding FileName}" 
-                                                                       Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12"/>
-                                                            <TextBlock Text="●" Margin="4,0,0,0" FontSize="8" VerticalAlignment="Center"
-                                                                       Foreground="#FFA726"
-                                                                       Visibility="{Binding IsModified, Converter={StaticResource BoolToVisibility}}"/>
-                                                            <Button Content="✕" Margin="6,0,0,0" Padding="2,0" FontSize="10"
-                                                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                                                    Foreground="{Binding DataContext.Theme.DimForeground, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    Command="{Binding DataContext.SelectedSession.CloseFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CommandParameter="{Binding}">
-                                                                <Button.Template>
-                                                                    <ControlTemplate TargetType="Button">
-                                                                        <ContentPresenter/>
-                                                                    </ControlTemplate>
-                                                                </Button.Template>
-                                                            </Button>
-                                                        </StackPanel>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- File content editor -->
-                                <TextBox Grid.Row="1" 
-                                         Text="{Binding SelectedFile.Content, UpdateSourceTrigger=PropertyChanged}"
-                                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
-                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                                         FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
-                                         Background="{Binding DataContext.Theme.EditorBg, RelativeSource={RelativeSource AncestorType=Window}}"
-                                         Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
-                                         CaretBrush="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
-                                         BorderThickness="0" Padding="8,4"/>
-                            </Grid>
-                        </Grid>
-                    </DataTemplate>
-                </TabControl.ContentTemplate>
-            </TabControl>
-
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" 
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch"
                           Background="{Binding Theme.BorderBrush}"/>
 
             <!-- Right panel: Modified Files -->
-            <Border Grid.Column="2" Background="{Binding Theme.SurfaceBg}" 
+            <Border Grid.Column="2" Background="{Binding Theme.SurfaceBg}"
                     BorderBrush="{Binding Theme.BorderBrush}" BorderThickness="1,0,0,0">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -239,15 +218,15 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
                     <StackPanel Grid.Row="0" Background="{Binding Theme.PanelBg}">
-                        <TextBlock Text="Modified Files" Foreground="{Binding Theme.Foreground}" 
+                        <TextBlock Text="Modified Files" Foreground="{Binding Theme.Foreground}"
                                    FontWeight="SemiBold" Padding="10,8,10,2"/>
-                        <TextBlock Text="{Binding SelectedSession.Session.WorkingDirectory}" 
+                        <TextBlock Text="{Binding SelectedSession.Session.WorkingDirectory}"
                                    Foreground="{Binding Theme.DimForeground}" Padding="10,0,10,6"
                                    FontFamily="Cascadia Code,Consolas" FontSize="10" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
-                    <ListBox Grid.Row="1" 
-                             ItemsSource="{Binding SelectedSession.ModifiedFiles}" 
-                             Background="{Binding Theme.SurfaceBg}" 
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding SelectedSession.ModifiedFiles}"
+                             Background="{Binding Theme.SurfaceBg}"
                              Foreground="{Binding Theme.Foreground}" BorderThickness="0"
                              FontFamily="Cascadia Code,Consolas,Courier New" FontSize="12">
                         <ListBox.ItemTemplate>
@@ -268,74 +247,5 @@
                 </Grid>
             </Border>
         </Grid>
-
-        <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" Background="{Binding Theme.BorderBrush}"/>
-
-        <!-- Terminal -->
-        <Border Grid.Row="3" Background="{Binding Theme.EditorBg}" 
-                BorderBrush="{Binding Theme.BorderBrush}" BorderThickness="0,1,0,0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Background="{Binding Theme.PanelBg}">
-                    <TextBlock Text="Terminal" Foreground="{Binding Theme.Foreground}" 
-                               FontWeight="SemiBold" Padding="10,4"/>
-                    <TextBlock Text=" — " Foreground="{Binding Theme.DimForeground}" VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding SelectedSession.Session.WorkingDirectory}" 
-                               Foreground="{Binding Theme.AccentBrush}" VerticalAlignment="Center"
-                               FontFamily="Cascadia Code,Consolas" FontSize="12" TextTrimming="CharacterEllipsis"/>
-                </StackPanel>
-
-                <!-- Smooth scrolling terminal output -->
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" CanContentScroll="False"
-                              Background="{Binding Theme.EditorBg}">
-                    <ItemsControl ItemsSource="{Binding SelectedSession.TerminalOutput}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Padding="8,1"
-                                           Foreground="{Binding DataContext.Theme.TerminalFg, RelativeSource={RelativeSource AncestorType=Window}}"
-                                           FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-
-                <Grid Grid.Row="2" Margin="6,4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="PS▸" Foreground="{Binding Theme.TerminalFg}" 
-                               VerticalAlignment="Center" Margin="4,0,8,0"
-                               FontFamily="Cascadia Code,Consolas" FontWeight="SemiBold"/>
-                    <TextBox Grid.Column="1" x:Name="TerminalInput"
-                             FontFamily="Cascadia Code,Consolas,Courier New"
-                             Background="{Binding Theme.InputBg}"
-                             Foreground="{Binding Theme.Foreground}"
-                             BorderBrush="{Binding Theme.InputBorder}"
-                             CaretBrush="{Binding Theme.Foreground}"
-                             Padding="6,4"
-                             KeyDown="TerminalInput_KeyDown"/>
-                    <Button Grid.Column="2" Content="Run" Padding="12,6" Margin="6,0,0,0" Cursor="Hand"
-                            Background="{Binding Theme.ButtonBg}" Foreground="{Binding Theme.Foreground}"
-                            BorderThickness="0"
-                            Command="{Binding SendTerminalCommandCommand}"
-                            CommandParameter="{Binding Text, ElementName=TerminalInput}"
-                            Click="RunButton_Click">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                            </ControlTemplate>
-                        </Button.Template>
-                    </Button>
-                </Grid>
-            </Grid>
-        </Border>
     </Grid>
 </Window>

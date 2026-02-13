@@ -1,10 +1,21 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CopilotHub.Core.Models;
 
 namespace CopilotHub.App.ViewModels;
+
+public enum ConsoleType { Copilot, Cmd, PowerShell }
+
+public class ConsoleProcessInfo
+{
+    public ConsoleType Type { get; init; }
+    public Process? Process { get; set; }
+    public IntPtr ConsoleHwnd { get; set; }
+    public bool IsRunning => Process is { HasExited: false };
+}
 
 public partial class SessionTabViewModel : ObservableObject
 {
@@ -14,6 +25,7 @@ public partial class SessionTabViewModel : ObservableObject
     public ObservableCollection<string> ModifiedFiles => Session.ModifiedFiles;
     public ObservableCollection<string> TerminalOutput { get; } = [];
     public ObservableCollection<OpenFileTab> OpenFiles { get; } = [];
+    public List<ConsoleProcessInfo> ConsoleProcesses { get; } = [];
 
     [ObservableProperty]
     private bool _isFlashing;
@@ -30,18 +42,35 @@ public partial class SessionTabViewModel : ObservableObject
     [ObservableProperty]
     private OpenFileTab? _selectedFile;
 
-    // false = copilot output, true = file editor
     [ObservableProperty]
     private bool _isFileEditorActive;
+
+    [ObservableProperty]
+    private ConsoleType _activeConsoleType = ConsoleType.Copilot;
 
     public SessionTabViewModel(CopilotSession session)
     {
         Session = session;
     }
 
+    public IntPtr GetActiveConsoleHwnd()
+    {
+        var info = ConsoleProcesses.FirstOrDefault(c => c.Type == ActiveConsoleType);
+        return info?.ConsoleHwnd ?? IntPtr.Zero;
+    }
+
+    public void KillAllProcesses()
+    {
+        foreach (var cp in ConsoleProcesses)
+        {
+            try { if (cp.IsRunning) cp.Process?.Kill(); } catch { }
+            cp.Process?.Dispose();
+        }
+        ConsoleProcesses.Clear();
+    }
+
     public void OpenFile(string relativePath)
     {
-        // Check if already open
         var existing = OpenFiles.FirstOrDefault(f => f.RelativePath == relativePath);
         if (existing is not null)
         {
@@ -64,11 +93,8 @@ public partial class SessionTabViewModel : ObservableObject
     private void CloseFile(OpenFileTab? file)
     {
         if (file is null) return;
-
-        // Save if modified
         if (file.IsModified)
             File.WriteAllText(file.FullPath, file.Content);
-
         OpenFiles.Remove(file);
         SelectedFile = OpenFiles.FirstOrDefault();
         if (SelectedFile is null)

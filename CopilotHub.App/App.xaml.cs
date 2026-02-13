@@ -69,12 +69,10 @@ public partial class App : Application
         services.AddSingleton<IDispatcherService, WpfDispatcherService>();
         services.AddSingleton<ThemeService>();
 
-        // Infrastructure
-        services.AddSingleton<ICopilotProcessService, CopilotCliService>();
+        // Infrastructure (kept for file tracking, git, diff, notifications)
         services.AddSingleton<IFileChangeTracker, FileChangeTracker>();
         services.AddSingleton<IGitService, GitService>();
         services.AddSingleton<IDiffService, DiffService>();
-        services.AddSingleton<ITerminalService, TerminalService>();
         services.AddSingleton<INotificationService, NotificationService>();
 
         // ViewModels

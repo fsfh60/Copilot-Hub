@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CopilotHub.App/CopilotHub.App.csproj" />
+  <Project Path="CopilotHub.Core/CopilotHub.Core.csproj" />
+  <Project Path="CopilotHub.Infrastructure/CopilotHub.Infrastructure.csproj" />
+  <Project Path="CopilotHub.Tests/CopilotHub.Tests.csproj" />
+</Solution>

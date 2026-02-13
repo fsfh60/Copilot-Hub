@@ -1,0 +1,285 @@
+﻿<Window x:Class="CopilotHub.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:CopilotHub.App.ViewModels"
+        xmlns:svc="clr-namespace:CopilotHub.App.Services"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="CopilotHub" Height="800" Width="1280"
+        WindowStartupLocation="CenterScreen"
+        Background="#1E1E1E">
+    <Window.Resources>
+        <Style x:Key="DarkButton" TargetType="Button">
+            <Setter Property="Background" Value="#3C3C3C"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="1" CornerRadius="3" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#505050"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DarkTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#2D2D2D"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="CaretBrush" Value="#CCCCCC"/>
+            <Setter Property="Padding" Value="4,2"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="3*"/>
+            <RowDefinition Height="5"/>
+            <RowDefinition Height="*" MinHeight="120"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Background="#2D2D2D" Padding="8">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="＋ New Session" Command="{Binding NewSessionCommand}" 
+                        Style="{StaticResource DarkButton}" Margin="0,0,8,0"/>
+                <Button Content="✕ Close Session" 
+                        Command="{Binding CloseSessionCommand}" 
+                        CommandParameter="{Binding SelectedSession}"
+                        Style="{StaticResource DarkButton}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main content area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="280"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Session tabs + output -->
+            <TabControl Grid.Column="0" 
+                        ItemsSource="{Binding Sessions}" 
+                        SelectedItem="{Binding SelectedSession}"
+                        Background="#1E1E1E" BorderBrush="#3C3C3C">
+                <TabControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:SessionTabViewModel}">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Margin="0,0,6,0"
+                                     Fill="{Binding Session.Status, Converter={StaticResource StatusToBrush}}"/>
+                            <TextBlock Text="{Binding Name}" Foreground="#CCCCCC"/>
+                            <TextBlock Text=" ●" Foreground="#FFA726" FontSize="10"
+                                       Visibility="{Binding HasFileIndicator, Converter={StaticResource BoolToVisibility}}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </TabControl.ItemTemplate>
+                <TabControl.ContentTemplate>
+                    <DataTemplate DataType="{x:Type vm:SessionTabViewModel}">
+                        <Grid Background="#1E1E1E">
+                            <!-- Copilot output -->
+                            <Grid Visibility="{Binding DataContext.IsDiffVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBoolToVisibility}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ListBox Grid.Row="0" ItemsSource="{Binding OutputLog}" 
+                                         Background="#1E1E1E" Foreground="#D4D4D4"
+                                         BorderThickness="0" FontFamily="Cascadia Code,Consolas,Courier New"
+                                         FontSize="13"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                         svc:AutoScrollBehavior.AutoScroll="True">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Grid Grid.Row="1" Margin="4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Copilot ▸" Foreground="#4EC9B0" 
+                                               VerticalAlignment="Center" Margin="4,0,8,0"
+                                               FontFamily="Cascadia Code,Consolas" FontWeight="SemiBold"/>
+                                    <TextBox Grid.Column="1" Style="{StaticResource DarkTextBox}"
+                                             FontFamily="Cascadia Code,Consolas,Courier New"
+                                             x:Name="CopilotInput"
+                                             KeyDown="CopilotInput_KeyDown"/>
+                                    <Button Grid.Column="2" Content="Send Prompt" Style="{StaticResource DarkButton}" 
+                                            Margin="4,0,0,0"
+                                            Command="{Binding DataContext.SendCopilotInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding Text, ElementName=CopilotInput}"
+                                            Click="SendButton_Click"/>
+                                </Grid>
+                            </Grid>
+
+                            <!-- Diff viewer -->
+                            <Grid Visibility="{Binding DataContext.IsDiffVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Border Grid.Row="0" Background="#2D2D2D" Padding="8,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Diff: " Foreground="#888"/>
+                                        <TextBlock Text="{Binding DataContext.SelectedFilePath, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                                   Foreground="#4EC9B0" FontFamily="Cascadia Code,Consolas"/>
+                                        <Button Content="✕ Close" Margin="20,0,0,0"
+                                                Style="{StaticResource DarkButton}"
+                                                Command="{Binding DataContext.CloseDiffCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    </StackPanel>
+                                </Border>
+                                <Grid Grid.Row="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="5"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Original -->
+                                    <Border Grid.Column="0" BorderBrush="#3C3C3C" BorderThickness="0,0,1,0">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Text="Original (HEAD)" Foreground="#888" 
+                                                       Background="#252525" Padding="8,4"/>
+                                            <TextBox Grid.Row="1" 
+                                                     Text="{Binding DataContext.OriginalContent, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}"
+                                                     IsReadOnly="True" Background="#1E1E1E" Foreground="#D4D4D4"
+                                                     FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                                     VerticalScrollBarVisibility="Auto" BorderThickness="0"/>
+                                        </Grid>
+                                    </Border>
+                                    <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#3C3C3C"/>
+                                    <!-- Modified -->
+                                    <Border Grid.Column="2">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+                                            <TextBlock Grid.Row="0" Text="Modified (Working)" Foreground="#888"
+                                                       Background="#252525" Padding="8,4"/>
+                                            <TextBox Grid.Row="1" 
+                                                     Text="{Binding DataContext.ModifiedContent, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}"
+                                                     IsReadOnly="True" Background="#1E1E1E" Foreground="#D4D4D4"
+                                                     FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                                     VerticalScrollBarVisibility="Auto" BorderThickness="0"/>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </Grid>
+                        </Grid>
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#3C3C3C"/>
+
+            <!-- Right panel: Modified Files -->
+            <Border Grid.Column="2" Background="#252525" BorderBrush="#3C3C3C" BorderThickness="1,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <StackPanel Grid.Row="0" Background="#2D2D2D">
+                        <TextBlock Text="Modified Files" Foreground="#CCCCCC" 
+                                   FontWeight="SemiBold" Padding="10,8,10,2"/>
+                        <TextBlock Text="{Binding SelectedSession.Session.WorkingDirectory}" 
+                                   Foreground="#666" Padding="10,0,10,6"
+                                   FontFamily="Cascadia Code,Consolas" FontSize="10"/>
+                    </StackPanel>
+                    <ListBox Grid.Row="1" 
+                             ItemsSource="{Binding SelectedSession.ModifiedFiles}" 
+                             Background="#252525" Foreground="#D4D4D4" BorderThickness="0"
+                             FontFamily="Cascadia Code,Consolas,Courier New" FontSize="12">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Cursor="Hand" Padding="4,2">
+                                    <TextBlock.InputBindings>
+                                        <MouseBinding Gesture="LeftDoubleClick"
+                                                      Command="{Binding DataContext.ViewFileDiffCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                      CommandParameter="{Binding}"/>
+                                    </TextBlock.InputBindings>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" Background="#3C3C3C"/>
+
+        <!-- Bottom panel: Terminal -->
+        <Border Grid.Row="3" Background="#1A1A1A" BorderBrush="#3C3C3C" BorderThickness="0,1,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D" >
+                    <TextBlock Text="Terminal" Foreground="#CCCCCC" 
+                               FontWeight="SemiBold" Padding="10,4"/>
+                    <TextBlock Text=" — " Foreground="#666" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding SelectedSession.Session.WorkingDirectory}" 
+                               Foreground="#4EC9B0" VerticalAlignment="Center"
+                               FontFamily="Cascadia Code,Consolas" FontSize="12"/>
+                </StackPanel>
+                <ListBox Grid.Row="1" 
+                         ItemsSource="{Binding SelectedSession.TerminalOutput}"
+                         Background="#1A1A1A" Foreground="#00FF00" BorderThickness="0"
+                         FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         svc:AutoScrollBehavior.AutoScroll="True">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Grid Grid.Row="2" Margin="4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="PS>" Foreground="#00FF00" 
+                               VerticalAlignment="Center" Margin="4,0,8,0"
+                               FontFamily="Cascadia Code,Consolas"/>
+                    <TextBox Grid.Column="1" Style="{StaticResource DarkTextBox}"
+                             FontFamily="Cascadia Code,Consolas,Courier New"
+                             x:Name="TerminalInput"
+                             KeyDown="TerminalInput_KeyDown"/>
+                    <Button Grid.Column="2" Content="Run" Style="{StaticResource DarkButton}" 
+                            Margin="4,0,0,0"
+                            Command="{Binding SendTerminalCommandCommand}"
+                            CommandParameter="{Binding Text, ElementName=TerminalInput}"
+                            Click="RunButton_Click"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

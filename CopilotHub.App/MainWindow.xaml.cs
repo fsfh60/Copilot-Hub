@@ -14,32 +14,24 @@ public partial class MainWindow : Window
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
 
-    private void CopilotInput_KeyDown(object sender, KeyEventArgs e)
+    private void CopilotInput_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        // Ctrl+Enter sends, plain Enter adds newline
-        if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control
+        if (e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift
             && sender is TextBox tb && !string.IsNullOrWhiteSpace(tb.Text))
         {
             ViewModel?.SendCopilotInputCommand.Execute(tb.Text);
-            tb.Clear();
+            // Clear via the bound property
+            if (tb.DataContext is SessionTabViewModel stvm)
+                stvm.CopilotInputText = string.Empty;
             e.Handled = true;
         }
     }
 
     private void SendButton_Click(object sender, RoutedEventArgs e)
     {
-        // Clear input after send — find within the visual tree
-        if (sender is Button btn && btn.Parent is Grid grid)
-        {
-            foreach (var child in LogicalTreeHelper.GetChildren(grid))
-            {
-                if (child is TextBox tb && tb.Name == "CopilotInput")
-                {
-                    tb.Clear();
-                    break;
-                }
-            }
-        }
+        // Clear the input after send
+        if (ViewModel?.SelectedSession is SessionTabViewModel stvm)
+            stvm.CopilotInputText = string.Empty;
     }
 
     private void TerminalInput_KeyDown(object sender, KeyEventArgs e)

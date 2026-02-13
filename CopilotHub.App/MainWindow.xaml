@@ -119,7 +119,8 @@
                                                    Foreground="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}" 
                                                    VerticalAlignment="Top" Margin="4,6,8,0"
                                                    FontFamily="Cascadia Code,Consolas" FontWeight="SemiBold"/>
-                                        <TextBox Grid.Column="1" x:Name="CopilotInput"
+                                        <TextBox Grid.Column="1"
+                                                 Text="{Binding CopilotInputText, UpdateSourceTrigger=PropertyChanged}"
                                                  MinHeight="50" MaxHeight="120"
                                                  AcceptsReturn="True" TextWrapping="Wrap"
                                                  VerticalScrollBarVisibility="Auto"
@@ -129,13 +130,13 @@
                                                  BorderBrush="{Binding DataContext.Theme.InputBorder, RelativeSource={RelativeSource AncestorType=Window}}"
                                                  CaretBrush="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
                                                  Padding="6,4"
-                                                 KeyDown="CopilotInput_KeyDown"/>
+                                                 PreviewKeyDown="CopilotInput_PreviewKeyDown"/>
                                         <Button Grid.Column="2" Content="Send" VerticalAlignment="Bottom"
                                                 Padding="14,8" Margin="6,0,0,0" Cursor="Hand"
                                                 Background="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 Foreground="White" BorderThickness="0"
                                                 Command="{Binding DataContext.SendCopilotInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding Text, ElementName=CopilotInput}"
+                                                CommandParameter="{Binding CopilotInputText}"
                                                 Click="SendButton_Click">
                                             <Button.Template>
                                                 <ControlTemplate TargetType="Button">

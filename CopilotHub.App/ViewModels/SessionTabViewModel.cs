@@ -22,6 +22,9 @@ public partial class SessionTabViewModel : ObservableObject
     private bool _hasFileIndicator;
 
     [ObservableProperty]
+    private string _copilotInputText = string.Empty;
+
+    [ObservableProperty]
     private string _terminalInput = string.Empty;
 
     [ObservableProperty]

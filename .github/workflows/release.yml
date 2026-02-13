@@ -57,33 +57,26 @@ jobs:
           dotnet-quality: 'preview'
 
       - name: Publish
-        run: >
-          dotnet publish ${{ env.PROJECT }} -c Release -r ${{ matrix.rid }}
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true
-          -p:DebugType=none
-          -p:DebugSymbols=false
-          -o ./publish/${{ matrix.rid }}
+        run: |
+          New-Item -ItemType Directory -Path ./staging -Force | Out-Null
+          dotnet publish ${{ env.PROJECT }} -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -p:DebugSymbols=false -o ./publish/${{ matrix.rid }}
 
       - name: Rename exe with version
         run: |
           $tag = "${{ github.ref_name }}"
-          Copy-Item "./publish/${{ matrix.rid }}/CopilotHub.App.exe" "./publish/${{ matrix.rid }}/${{ matrix.exe_name }}"
+          Copy-Item "./publish/${{ matrix.rid }}/CopilotHub.App.exe" "./staging/${{ matrix.exe_name }}" -Force
+        shell: pwsh
 
       - name: Create zip
         run: |
           $tag = "${{ github.ref_name }}"
-          Compress-Archive -Path "./publish/${{ matrix.rid }}/${{ matrix.exe_name }}" -DestinationPath "./publish/${{ matrix.artifact }}-$tag.zip"
+          Compress-Archive -Path "./staging/${{ matrix.exe_name }}" -DestinationPath "./staging/${{ matrix.artifact }}-$tag.zip"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: |
-            ./publish/${{ matrix.rid }}/${{ matrix.exe_name }}
-            ./publish/${{ matrix.artifact }}-${{ github.ref_name }}.zip
+          path: ./staging/
 
   release:
     name: Create Release
@@ -102,14 +95,17 @@ jobs:
           TAG="${{ github.ref_name }}"
           mkdir -p release
 
-          # Windows x64
-          cp ./artifacts/CopilotHub-windows-x64/publish/win-x64/CopilotHub.exe           "release/CopilotHub.exe"
-          cp ./artifacts/CopilotHub-windows-x64/publish/win-x64/CopilotHub.exe           "release/CopilotHub-${TAG}-windows-x64.exe"
-          cp ./artifacts/CopilotHub-windows-x64/publish/CopilotHub-windows-x64-${TAG}.zip "release/CopilotHub-${TAG}-windows-x64.zip"
+          echo "=== Artifact structure ==="
+          find ./artifacts -type f
+
+          # Windows x64 — flat structure from staging/
+          cp "./artifacts/CopilotHub-windows-x64/CopilotHub.exe"                       "release/CopilotHub.exe"
+          cp "./artifacts/CopilotHub-windows-x64/CopilotHub.exe"                       "release/CopilotHub-${TAG}-windows-x64.exe"
+          cp "./artifacts/CopilotHub-windows-x64/CopilotHub-windows-x64-${TAG}.zip"    "release/CopilotHub-${TAG}-windows-x64.zip"
 
           # Windows ARM64
-          cp ./artifacts/CopilotHub-windows-arm64/publish/win-arm64/CopilotHub.exe        "release/CopilotHub-${TAG}-windows-arm64.exe"
-          cp ./artifacts/CopilotHub-windows-arm64/publish/CopilotHub-windows-arm64-${TAG}.zip "release/CopilotHub-${TAG}-windows-arm64.zip"
+          cp "./artifacts/CopilotHub-windows-arm64/CopilotHub.exe"                     "release/CopilotHub-${TAG}-windows-arm64.exe"
+          cp "./artifacts/CopilotHub-windows-arm64/CopilotHub-windows-arm64-${TAG}.zip" "release/CopilotHub-${TAG}-windows-arm64.zip"
 
       - name: Generate SHA256 checksums
         run: |

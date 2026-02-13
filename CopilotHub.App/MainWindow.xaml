@@ -9,40 +9,7 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="CopilotHub" Height="800" Width="1280"
         WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E">
-    <Window.Resources>
-        <Style x:Key="DarkButton" TargetType="Button">
-            <Setter Property="Background" Value="#3C3C3C"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" 
-                                BorderBrush="{TemplateBinding BorderBrush}" 
-                                BorderThickness="1" CornerRadius="3" 
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#505050"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="DarkTextBox" TargetType="TextBox">
-            <Setter Property="Background" Value="#2D2D2D"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="BorderBrush" Value="#555555"/>
-            <Setter Property="CaretBrush" Value="#CCCCCC"/>
-            <Setter Property="Padding" Value="4,2"/>
-        </Style>
-    </Window.Resources>
+        Background="{Binding Theme.WindowBg}">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -53,171 +20,242 @@
         </Grid.RowDefinitions>
 
         <!-- Toolbar -->
-        <Border Grid.Row="0" Background="#2D2D2D" Padding="8">
-            <StackPanel Orientation="Horizontal">
-                <Button Content="＋ New Session" Command="{Binding NewSessionCommand}" 
-                        Style="{StaticResource DarkButton}" Margin="0,0,8,0"/>
-                <Button Content="✕ Close Session" 
-                        Command="{Binding CloseSessionCommand}" 
-                        CommandParameter="{Binding SelectedSession}"
-                        Style="{StaticResource DarkButton}"/>
-            </StackPanel>
+        <Border Grid.Row="0" Background="{Binding Theme.PanelBg}" Padding="8,6">
+            <Button Content="＋ New Session" Command="{Binding NewSessionCommand}" 
+                    Padding="14,6" Cursor="Hand" FontWeight="SemiBold"
+                    Background="{Binding Theme.AccentBrush}" Foreground="White" BorderThickness="0">
+                <Button.Template>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Button.Template>
+            </Button>
         </Border>
 
-        <!-- Main content area -->
+        <!-- Main content -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="5"/>
-                <ColumnDefinition Width="280"/>
+                <ColumnDefinition Width="260"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Session tabs + output -->
+            <!-- Session tabs -->
             <TabControl Grid.Column="0" 
                         ItemsSource="{Binding Sessions}" 
                         SelectedItem="{Binding SelectedSession}"
-                        Background="#1E1E1E" BorderBrush="#3C3C3C">
+                        Background="{Binding Theme.WindowBg}" 
+                        BorderBrush="{Binding Theme.BorderBrush}"
+                        Padding="0">
                 <TabControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:SessionTabViewModel}">
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal" Margin="2,0">
                             <Ellipse Width="8" Height="8" Margin="0,0,6,0"
                                      Fill="{Binding Session.Status, Converter={StaticResource StatusToBrush}}"/>
-                            <TextBlock Text="{Binding Name}" Foreground="#CCCCCC"/>
-                            <TextBlock Text=" ●" Foreground="#FFA726" FontSize="10"
+                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                       Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                            <TextBlock Text=" ●" Foreground="#FFA726" FontSize="10" VerticalAlignment="Center"
                                        Visibility="{Binding HasFileIndicator, Converter={StaticResource BoolToVisibility}}"/>
+                            <Button Content="✕" Margin="8,0,0,0" Padding="4,0" FontSize="11"
+                                    Cursor="Hand" VerticalAlignment="Center"
+                                    Background="Transparent" Foreground="{Binding DataContext.Theme.DimForeground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    BorderThickness="0"
+                                    Command="{Binding DataContext.CloseSessionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Foreground" Value="Red"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
                         </StackPanel>
                     </DataTemplate>
                 </TabControl.ItemTemplate>
                 <TabControl.ContentTemplate>
                     <DataTemplate DataType="{x:Type vm:SessionTabViewModel}">
-                        <Grid Background="#1E1E1E">
-                            <!-- Copilot output -->
-                            <Grid Visibility="{Binding DataContext.IsDiffVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource InverseBoolToVisibility}}">
+                        <Grid Background="{Binding DataContext.Theme.WindowBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <!-- Copilot output view -->
+                            <Grid Visibility="{Binding IsFileEditorActive, Converter={StaticResource InverseBoolToVisibility}}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="*"/>
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
-                                <ListBox Grid.Row="0" ItemsSource="{Binding OutputLog}" 
-                                         Background="#1E1E1E" Foreground="#D4D4D4"
-                                         BorderThickness="0" FontFamily="Cascadia Code,Consolas,Courier New"
-                                         FontSize="13"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                                         svc:AutoScrollBehavior.AutoScroll="True">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                                <Grid Grid.Row="1" Margin="4">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Copilot ▸" Foreground="#4EC9B0" 
-                                               VerticalAlignment="Center" Margin="4,0,8,0"
-                                               FontFamily="Cascadia Code,Consolas" FontWeight="SemiBold"/>
-                                    <TextBox Grid.Column="1" Style="{StaticResource DarkTextBox}"
-                                             FontFamily="Cascadia Code,Consolas,Courier New"
-                                             x:Name="CopilotInput"
-                                             KeyDown="CopilotInput_KeyDown"/>
-                                    <Button Grid.Column="2" Content="Send Prompt" Style="{StaticResource DarkButton}" 
-                                            Margin="4,0,0,0"
-                                            Command="{Binding DataContext.SendCopilotInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                            CommandParameter="{Binding Text, ElementName=CopilotInput}"
-                                            Click="SendButton_Click"/>
-                                </Grid>
+
+                                <!-- Smooth scrolling output -->
+                                <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" 
+                                              CanContentScroll="False"
+                                              Background="{Binding DataContext.Theme.WindowBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                                    <ItemsControl ItemsSource="{Binding OutputLog}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Padding="8,1"
+                                                           Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                           FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <!-- Multiline prompt area -->
+                                <Border Grid.Row="1" Background="{Binding DataContext.Theme.PanelBg, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        BorderBrush="{Binding DataContext.Theme.BorderBrush, RelativeSource={RelativeSource AncestorType=Window}}"
+                                        BorderThickness="0,1,0,0" Padding="6">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Copilot ▸" 
+                                                   Foreground="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                                   VerticalAlignment="Top" Margin="4,6,8,0"
+                                                   FontFamily="Cascadia Code,Consolas" FontWeight="SemiBold"/>
+                                        <TextBox Grid.Column="1" x:Name="CopilotInput"
+                                                 MinHeight="50" MaxHeight="120"
+                                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 FontFamily="Cascadia Code,Consolas,Courier New"
+                                                 Background="{Binding DataContext.Theme.InputBg, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 BorderBrush="{Binding DataContext.Theme.InputBorder, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 CaretBrush="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                 Padding="6,4"
+                                                 KeyDown="CopilotInput_KeyDown"/>
+                                        <Button Grid.Column="2" Content="Send" VerticalAlignment="Bottom"
+                                                Padding="14,8" Margin="6,0,0,0" Cursor="Hand"
+                                                Background="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Foreground="White" BorderThickness="0"
+                                                Command="{Binding DataContext.SendCopilotInputCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding Text, ElementName=CopilotInput}"
+                                                Click="SendButton_Click">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </Grid>
+                                </Border>
                             </Grid>
 
-                            <!-- Diff viewer -->
-                            <Grid Visibility="{Binding DataContext.IsDiffVisible, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource BoolToVisibility}}">
+                            <!-- File editor view -->
+                            <Grid Visibility="{Binding IsFileEditorActive, Converter={StaticResource BoolToVisibility}}">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
-                                <Border Grid.Row="0" Background="#2D2D2D" Padding="8,4">
+
+                                <!-- File sub-tabs -->
+                                <Border Grid.Row="0" Background="{Binding DataContext.Theme.PanelBg, RelativeSource={RelativeSource AncestorType=Window}}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="Diff: " Foreground="#888"/>
-                                        <TextBlock Text="{Binding DataContext.SelectedFilePath, RelativeSource={RelativeSource AncestorType=Window}}" 
-                                                   Foreground="#4EC9B0" FontFamily="Cascadia Code,Consolas"/>
-                                        <Button Content="✕ Close" Margin="20,0,0,0"
-                                                Style="{StaticResource DarkButton}"
-                                                Command="{Binding DataContext.CloseDiffCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        <Button Content="◀ Copilot" Margin="4,2" Padding="8,4" Cursor="Hand"
+                                                Background="Transparent" BorderThickness="0"
+                                                Foreground="{Binding DataContext.Theme.AccentBrush, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                Command="{Binding ShowCopilotOutputCommand}">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                        <ItemsControl ItemsSource="{Binding OpenFiles}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:OpenFileTab}">
+                                                    <Border Margin="1,2" Padding="8,4" CornerRadius="3" Cursor="Hand"
+                                                            Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            MouseLeftButtonDown="FileTab_Click">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding FileName}" 
+                                                                       Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12"/>
+                                                            <TextBlock Text="●" Margin="4,0,0,0" FontSize="8" VerticalAlignment="Center"
+                                                                       Foreground="#FFA726"
+                                                                       Visibility="{Binding IsModified, Converter={StaticResource BoolToVisibility}}"/>
+                                                            <Button Content="✕" Margin="6,0,0,0" Padding="2,0" FontSize="10"
+                                                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                                    Foreground="{Binding DataContext.Theme.DimForeground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    Command="{Binding DataContext.SelectedSession.CloseFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}">
+                                                                <Button.Template>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <ContentPresenter/>
+                                                                    </ControlTemplate>
+                                                                </Button.Template>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
                                 </Border>
-                                <Grid Grid.Row="1">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="5"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <!-- Original -->
-                                    <Border Grid.Column="0" BorderBrush="#3C3C3C" BorderThickness="0,0,1,0">
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="*"/>
-                                            </Grid.RowDefinitions>
-                                            <TextBlock Grid.Row="0" Text="Original (HEAD)" Foreground="#888" 
-                                                       Background="#252525" Padding="8,4"/>
-                                            <TextBox Grid.Row="1" 
-                                                     Text="{Binding DataContext.OriginalContent, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}"
-                                                     IsReadOnly="True" Background="#1E1E1E" Foreground="#D4D4D4"
-                                                     FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
-                                                     TextWrapping="Wrap" AcceptsReturn="True"
-                                                     VerticalScrollBarVisibility="Auto" BorderThickness="0"/>
-                                        </Grid>
-                                    </Border>
-                                    <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#3C3C3C"/>
-                                    <!-- Modified -->
-                                    <Border Grid.Column="2">
-                                        <Grid>
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="*"/>
-                                            </Grid.RowDefinitions>
-                                            <TextBlock Grid.Row="0" Text="Modified (Working)" Foreground="#888"
-                                                       Background="#252525" Padding="8,4"/>
-                                            <TextBox Grid.Row="1" 
-                                                     Text="{Binding DataContext.ModifiedContent, RelativeSource={RelativeSource AncestorType=Window}, Mode=OneWay}"
-                                                     IsReadOnly="True" Background="#1E1E1E" Foreground="#D4D4D4"
-                                                     FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
-                                                     TextWrapping="Wrap" AcceptsReturn="True"
-                                                     VerticalScrollBarVisibility="Auto" BorderThickness="0"/>
-                                        </Grid>
-                                    </Border>
-                                </Grid>
+
+                                <!-- File content editor -->
+                                <TextBox Grid.Row="1" 
+                                         Text="{Binding SelectedFile.Content, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                         FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                                         Background="{Binding DataContext.Theme.EditorBg, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         CaretBrush="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                         BorderThickness="0" Padding="8,4"/>
                             </Grid>
                         </Grid>
                     </DataTemplate>
                 </TabControl.ContentTemplate>
             </TabControl>
 
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="#3C3C3C"/>
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" 
+                          Background="{Binding Theme.BorderBrush}"/>
 
             <!-- Right panel: Modified Files -->
-            <Border Grid.Column="2" Background="#252525" BorderBrush="#3C3C3C" BorderThickness="1,0,0,0">
+            <Border Grid.Column="2" Background="{Binding Theme.SurfaceBg}" 
+                    BorderBrush="{Binding Theme.BorderBrush}" BorderThickness="1,0,0,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    <StackPanel Grid.Row="0" Background="#2D2D2D">
-                        <TextBlock Text="Modified Files" Foreground="#CCCCCC" 
+                    <StackPanel Grid.Row="0" Background="{Binding Theme.PanelBg}">
+                        <TextBlock Text="Modified Files" Foreground="{Binding Theme.Foreground}" 
                                    FontWeight="SemiBold" Padding="10,8,10,2"/>
                         <TextBlock Text="{Binding SelectedSession.Session.WorkingDirectory}" 
-                                   Foreground="#666" Padding="10,0,10,6"
-                                   FontFamily="Cascadia Code,Consolas" FontSize="10"/>
+                                   Foreground="{Binding Theme.DimForeground}" Padding="10,0,10,6"
+                                   FontFamily="Cascadia Code,Consolas" FontSize="10" TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
                     <ListBox Grid.Row="1" 
                              ItemsSource="{Binding SelectedSession.ModifiedFiles}" 
-                             Background="#252525" Foreground="#D4D4D4" BorderThickness="0"
+                             Background="{Binding Theme.SurfaceBg}" 
+                             Foreground="{Binding Theme.Foreground}" BorderThickness="0"
                              FontFamily="Cascadia Code,Consolas,Courier New" FontSize="12">
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding}" Cursor="Hand" Padding="4,2">
+                                <TextBlock Text="{Binding}" Cursor="Hand" Padding="6,3">
                                     <TextBlock.InputBindings>
+                                        <MouseBinding Gesture="LeftClick"
+                                                      Command="{Binding DataContext.OpenFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                      CommandParameter="{Binding}"/>
                                         <MouseBinding Gesture="LeftDoubleClick"
                                                       Command="{Binding DataContext.ViewFileDiffCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                       CommandParameter="{Binding}"/>
@@ -230,54 +268,71 @@
             </Border>
         </Grid>
 
-        <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" Background="#3C3C3C"/>
+        <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" Background="{Binding Theme.BorderBrush}"/>
 
-        <!-- Bottom panel: Terminal -->
-        <Border Grid.Row="3" Background="#1A1A1A" BorderBrush="#3C3C3C" BorderThickness="0,1,0,0">
+        <!-- Terminal -->
+        <Border Grid.Row="3" Background="{Binding Theme.EditorBg}" 
+                BorderBrush="{Binding Theme.BorderBrush}" BorderThickness="0,1,0,0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D" >
-                    <TextBlock Text="Terminal" Foreground="#CCCCCC" 
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Background="{Binding Theme.PanelBg}">
+                    <TextBlock Text="Terminal" Foreground="{Binding Theme.Foreground}" 
                                FontWeight="SemiBold" Padding="10,4"/>
-                    <TextBlock Text=" — " Foreground="#666" VerticalAlignment="Center"/>
+                    <TextBlock Text=" — " Foreground="{Binding Theme.DimForeground}" VerticalAlignment="Center"/>
                     <TextBlock Text="{Binding SelectedSession.Session.WorkingDirectory}" 
-                               Foreground="#4EC9B0" VerticalAlignment="Center"
-                               FontFamily="Cascadia Code,Consolas" FontSize="12"/>
+                               Foreground="{Binding Theme.AccentBrush}" VerticalAlignment="Center"
+                               FontFamily="Cascadia Code,Consolas" FontSize="12" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
-                <ListBox Grid.Row="1" 
-                         ItemsSource="{Binding SelectedSession.TerminalOutput}"
-                         Background="#1A1A1A" Foreground="#00FF00" BorderThickness="0"
-                         FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         svc:AutoScrollBehavior.AutoScroll="True">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" TextWrapping="Wrap"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-                <Grid Grid.Row="2" Margin="4">
+
+                <!-- Smooth scrolling terminal output -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" CanContentScroll="False"
+                              Background="{Binding Theme.EditorBg}">
+                    <ItemsControl ItemsSource="{Binding SelectedSession.TerminalOutput}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Padding="8,1"
+                                           Foreground="{Binding DataContext.Theme.TerminalFg, RelativeSource={RelativeSource AncestorType=Window}}"
+                                           FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" Margin="6,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="PS>" Foreground="#00FF00" 
+                    <TextBlock Grid.Column="0" Text="PS▸" Foreground="{Binding Theme.TerminalFg}" 
                                VerticalAlignment="Center" Margin="4,0,8,0"
-                               FontFamily="Cascadia Code,Consolas"/>
-                    <TextBox Grid.Column="1" Style="{StaticResource DarkTextBox}"
+                               FontFamily="Cascadia Code,Consolas" FontWeight="SemiBold"/>
+                    <TextBox Grid.Column="1" x:Name="TerminalInput"
                              FontFamily="Cascadia Code,Consolas,Courier New"
-                             x:Name="TerminalInput"
+                             Background="{Binding Theme.InputBg}"
+                             Foreground="{Binding Theme.Foreground}"
+                             BorderBrush="{Binding Theme.InputBorder}"
+                             CaretBrush="{Binding Theme.Foreground}"
+                             Padding="6,4"
                              KeyDown="TerminalInput_KeyDown"/>
-                    <Button Grid.Column="2" Content="Run" Style="{StaticResource DarkButton}" 
-                            Margin="4,0,0,0"
+                    <Button Grid.Column="2" Content="Run" Padding="12,6" Margin="6,0,0,0" Cursor="Hand"
+                            Background="{Binding Theme.ButtonBg}" Foreground="{Binding Theme.Foreground}"
+                            BorderThickness="0"
                             Command="{Binding SendTerminalCommandCommand}"
                             CommandParameter="{Binding Text, ElementName=TerminalInput}"
-                            Click="RunButton_Click"/>
+                            Click="RunButton_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </Grid>
             </Grid>
         </Border>

@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Publish self-contained exe
+        run: >
+          dotnet publish CopilotHub.App -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -o ./publish
+
+      - name: Create release zip
+        run: Compress-Archive -Path ./publish/* -DestinationPath ./CopilotHub-${{ github.ref_name }}-win-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: CopilotHub ${{ github.ref_name }}
+          body: |
+            ## CopilotHub ${{ github.ref_name }}
+
+            ### Download
+            - **CopilotHub-${{ github.ref_name }}-win-x64.zip** — Self-contained Windows x64 executable (no .NET install needed)
+
+            ### Requirements
+            - Windows 10/11
+            - [GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) installed and authenticated
+
+            ### What's included
+            - Multi-session Copilot tabs with model selection
+            - Live output streaming
+            - File change tracking + editor
+            - Side-by-side diff viewer
+            - Embedded PowerShell terminal
+            - Windows theme auto-detection (light/dark)
+          files: |
+            ./CopilotHub-${{ github.ref_name }}-win-x64.zip
+          generate_release_notes: true

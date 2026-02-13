@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CopilotHub.App.Services;
 using CopilotHub.Core.Models;
 using CopilotHub.Core.Services;
 using Serilog;
@@ -19,6 +20,8 @@ public partial class MainViewModel : ObservableObject
     private readonly INotificationService _notificationService;
     private readonly IDispatcherService _dispatcher;
     private readonly ILogger _logger = Log.ForContext<MainViewModel>();
+
+    public ThemeService Theme { get; }
 
     public ObservableCollection<SessionTabViewModel> Sessions { get; } = [];
 
@@ -48,7 +51,8 @@ public partial class MainViewModel : ObservableObject
         IDiffService diffService,
         ITerminalService terminalService,
         INotificationService notificationService,
-        IDispatcherService dispatcher)
+        IDispatcherService dispatcher,
+        ThemeService theme)
     {
         _sessionManager = sessionManager;
         _copilotService = copilotService;
@@ -58,6 +62,7 @@ public partial class MainViewModel : ObservableObject
         _terminalService = terminalService;
         _notificationService = notificationService;
         _dispatcher = dispatcher;
+        Theme = theme;
 
         _sessionManager.SessionCompleted += OnSessionCompleted;
         _fileChangeTracker.FileChanged += OnFileChanged;
@@ -84,26 +89,14 @@ public partial class MainViewModel : ObservableObject
             Sessions.Add(tabVm);
             SelectedSession = tabVm;
 
-            // Start file tracking
             _fileChangeTracker.StartTracking(session.Id, dialog.SelectedDirectory);
 
-            // Start terminal
-            try
-            {
-                await _terminalService.StartAsync(session.Id, dialog.SelectedDirectory);
-            }
-            catch (Exception ex)
-            {
-                _logger.Warning(ex, "Failed to start terminal for session {Id}", session.Id);
-            }
+            try { await _terminalService.StartAsync(session.Id, dialog.SelectedDirectory); }
+            catch (Exception ex) { _logger.Warning(ex, "Failed to start terminal for session {Id}", session.Id); }
 
-            // Initialize copilot session
             _ = Task.Run(async () =>
             {
-                try
-                {
-                    await _copilotService.StartSessionAsync(session);
-                }
+                try { await _copilotService.StartSessionAsync(session); }
                 catch (Exception ex)
                 {
                     _logger.Error(ex, "Copilot process failed for session {Id}", session.Id);
@@ -111,23 +104,18 @@ public partial class MainViewModel : ObservableObject
                 }
             });
         }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Failed to create new session");
-        }
+        catch (Exception ex) { _logger.Error(ex, "Failed to create new session"); }
     }
 
     [RelayCommand]
     private void CloseSession(SessionTabViewModel? tab)
     {
         if (tab is null) return;
-
         _copilotService.StopSession(tab.Session.Id);
         _fileChangeTracker.StopTracking(tab.Session.Id);
         _terminalService.Stop(tab.Session.Id);
         _sessionManager.RemoveSession(tab.Session.Id);
         Sessions.Remove(tab);
-
         if (SelectedSession == tab)
             SelectedSession = Sessions.FirstOrDefault();
     }
@@ -136,44 +124,32 @@ public partial class MainViewModel : ObservableObject
     private async Task SendCopilotInputAsync(string? input)
     {
         if (string.IsNullOrWhiteSpace(input) || SelectedSession is null) return;
-        // Run in background so UI stays responsive during long prompts
         _ = Task.Run(async () =>
         {
-            try
-            {
-                await _copilotService.SendInputAsync(SelectedSession.Session.Id, input);
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Error sending copilot input");
-            }
+            try { await _copilotService.SendInputAsync(SelectedSession.Session.Id, input); }
+            catch (Exception ex) { _logger.Error(ex, "Error sending copilot input"); }
         });
     }
 
     [RelayCommand]
     private async Task SendTerminalCommandAsync(string? command)
     {
-        _logger.Debug("SendTerminalCommand called with: {Command}, SelectedSession null: {IsNull}", 
-            command, SelectedSession is null);
         if (string.IsNullOrWhiteSpace(command) || SelectedSession is null) return;
-        
-        _logger.Debug("Sending terminal command to session {Id}", SelectedSession.Session.Id);
-        try
-        {
-            await _terminalService.SendCommandAsync(SelectedSession.Session.Id, command);
-            _logger.Debug("Terminal command sent successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Error sending terminal command");
-        }
+        try { await _terminalService.SendCommandAsync(SelectedSession.Session.Id, command); }
+        catch (Exception ex) { _logger.Error(ex, "Error sending terminal command"); }
+    }
+
+    [RelayCommand]
+    private void OpenFile(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || SelectedSession is null) return;
+        SelectedSession.OpenFile(filePath);
     }
 
     [RelayCommand]
     private void ViewFileDiff(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath) || SelectedSession is null) return;
-
         try
         {
             var session = SelectedSession.Session;
@@ -194,7 +170,6 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            // Fallback: just show current content
             var fullPath = Path.Combine(repoPath, filePath);
             if (File.Exists(fullPath))
             {
@@ -206,10 +181,7 @@ public partial class MainViewModel : ObservableObject
                 IsDiffVisible = true;
             }
         }
-        catch (Exception ex)
-        {
-            _logger.Error(ex, "Error viewing diff for {File}", filePath);
-        }
+        catch (Exception ex) { _logger.Error(ex, "Error viewing diff for {File}", filePath); }
     }
 
     [RelayCommand]
@@ -227,11 +199,8 @@ public partial class MainViewModel : ObservableObject
         _dispatcher.Invoke(() =>
         {
             var tab = Sessions.FirstOrDefault(s => s.Session.Id == e.Session.Id);
-            if (tab is not null)
-                tab.IsFlashing = true;
-
-            var success = e.FinalStatus == SessionStatus.Completed;
-            _notificationService.ShowSessionCompleted(e.Session.Name, success);
+            if (tab is not null) tab.IsFlashing = true;
+            _notificationService.ShowSessionCompleted(e.Session.Name, e.FinalStatus == SessionStatus.Completed);
         });
     }
 
@@ -241,17 +210,14 @@ public partial class MainViewModel : ObservableObject
         {
             var session = _sessionManager.GetSession(e.SessionId);
             if (session is null) return;
-
             var relativePath = Path.GetRelativePath(session.WorkingDirectory, e.FilePath);
             if (!session.ModifiedFiles.Contains(relativePath))
             {
                 session.ModifiedFiles.Add(relativePath);
                 session.HasFileChanges = true;
             }
-
             var tab = Sessions.FirstOrDefault(s => s.Session.Id == e.SessionId);
-            if (tab is not null)
-                tab.HasFileIndicator = true;
+            if (tab is not null) tab.HasFileIndicator = true;
         });
     }
 

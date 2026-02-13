@@ -67,6 +67,7 @@ public partial class App : Application
         // Core
         services.AddSingleton<ISessionManager, SessionManager>();
         services.AddSingleton<IDispatcherService, WpfDispatcherService>();
+        services.AddSingleton<ThemeService>();
 
         // Infrastructure
         services.AddSingleton<ICopilotProcessService, CopilotCliService>();

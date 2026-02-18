@@ -69,7 +69,7 @@ public partial class SessionTabViewModel : ObservableObject
         ConsoleProcesses.Clear();
     }
 
-    public void OpenFile(string relativePath)
+    public void OpenFile(string relativePath, string? originalContent = null)
     {
         var existing = OpenFiles.FirstOrDefault(f => f.RelativePath == relativePath);
         if (existing is not null)
@@ -83,7 +83,10 @@ public partial class SessionTabViewModel : ObservableObject
         if (!File.Exists(fullPath)) return;
 
         var content = File.ReadAllText(fullPath);
-        var tab = new OpenFileTab(relativePath, fullPath, content);
+        var tab = new OpenFileTab(relativePath, fullPath, content)
+        {
+            OriginalContent = originalContent ?? content
+        };
         OpenFiles.Add(tab);
         SelectedFile = tab;
         IsFileEditorActive = true;
@@ -122,11 +125,17 @@ public partial class OpenFileTab : ObservableObject
     public string FullPath { get; }
     public string FileName => Path.GetFileName(RelativePath);
 
+    /// <summary>Content at HEAD (for diff comparison).</summary>
+    public string OriginalContent { get; set; } = string.Empty;
+
     [ObservableProperty]
     private string _content;
 
     [ObservableProperty]
     private bool _isModified;
+
+    [ObservableProperty]
+    private bool _isDiffView;
 
     public OpenFileTab(string relativePath, string fullPath, string content)
     {

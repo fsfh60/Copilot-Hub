@@ -27,6 +27,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private SessionTabViewModel? _selectedSession;
 
+    public bool HasActiveSession => SelectedSession is not null;
+
     [ObservableProperty]
     private string? _selectedFilePath;
 
@@ -68,6 +70,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedSessionChanged(SessionTabViewModel? value)
     {
+        OnPropertyChanged(nameof(HasActiveSession));
         ConsoleSwapRequested?.Invoke();
     }
 
@@ -162,7 +165,17 @@ public partial class MainViewModel : ObservableObject
     private void OpenFile(string? filePath)
     {
         if (string.IsNullOrWhiteSpace(filePath) || SelectedSession is null) return;
-        SelectedSession.OpenFile(filePath);
+
+        string? originalContent = null;
+        try
+        {
+            var repoPath = SelectedSession.Session.WorkingDirectory;
+            if (_gitService.IsGitRepository(repoPath))
+                originalContent = _gitService.GetFileContentAtHead(repoPath, filePath);
+        }
+        catch { /* fall through — originalContent stays null */ }
+
+        SelectedSession.OpenFile(filePath, originalContent);
         ConsoleSwapRequested?.Invoke();
     }
 

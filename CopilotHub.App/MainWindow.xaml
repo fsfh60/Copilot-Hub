@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:CopilotHub.App.ViewModels"
         xmlns:controls="clr-namespace:CopilotHub.App.Controls"
+        xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="CopilotHub" Height="800" Width="1280"
@@ -82,9 +83,10 @@
             </DockPanel>
         </Border>
 
-        <!-- Row 1: Console type selector -->
+        <!-- Row 1: Console type selector (hidden until a session is active) -->
         <Border Grid.Row="1" Background="{Binding Theme.SurfaceBg}" Padding="6,3"
-                BorderBrush="{Binding Theme.BorderBrush}" BorderThickness="0,0,0,1">
+                BorderBrush="{Binding Theme.BorderBrush}" BorderThickness="0,0,0,1"
+                Visibility="{Binding HasActiveSession, Converter={StaticResource BoolToVisibility}}">
             <StackPanel Orientation="Horizontal">
                 <RadioButton x:Name="RbCopilot" GroupName="ConsoleType" Content="🤖 Copilot" IsChecked="True"
                              Foreground="{Binding Theme.Foreground}" Margin="0,0,4,0"
@@ -164,11 +166,13 @@
                   Background="{Binding Theme.WindowBg}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
+                <!-- Top bar: back button + file tabs -->
                 <Border Grid.Row="0" Background="{Binding Theme.PanelBg}">
-                    <StackPanel Orientation="Horizontal">
-                        <Button Content="◀ Back to Console" Margin="4,2" Padding="8,4" Cursor="Hand"
+                    <DockPanel>
+                        <Button DockPanel.Dock="Left" Content="◀ Back" Margin="4,2" Padding="8,4" Cursor="Hand"
                                 Background="Transparent" BorderThickness="0"
                                 Foreground="{Binding Theme.AccentBrush}"
                                 Click="BackToConsole_Click">
@@ -185,19 +189,172 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
-                        <TextBlock Text="{Binding SelectedSession.SelectedFile.FileName}" VerticalAlignment="Center"
-                                   Foreground="{Binding Theme.Foreground}" FontWeight="SemiBold" Margin="8,0"/>
+                        <!-- Open file tabs -->
+                        <ItemsControl DockPanel.Dock="Left" ItemsSource="{Binding SelectedSession.OpenFiles}" Margin="4,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:OpenFileTab}">
+                                    <Border Margin="1,2" Padding="8,3" CornerRadius="3" Cursor="Hand"
+                                            MouseLeftButtonDown="FileTab_Click"
+                                            BorderThickness="1"
+                                            BorderBrush="{Binding DataContext.Theme.BorderBrush, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding FileName}" VerticalAlignment="Center"
+                                                       Foreground="{Binding DataContext.Theme.Foreground, RelativeSource={RelativeSource AncestorType=Window}}" FontSize="12"/>
+                                            <TextBlock Text=" •" Foreground="#FFA726" FontSize="12" VerticalAlignment="Center"
+                                                       Visibility="{Binding IsModified, Converter={StaticResource BoolToVisibility}}"/>
+                                            <Button Content="✕" Margin="6,0,0,0" Padding="3,0" FontSize="10"
+                                                    Cursor="Hand" VerticalAlignment="Center"
+                                                    Background="Transparent" BorderThickness="0"
+                                                    Foreground="{Binding DataContext.Theme.DimForeground, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    Command="{Binding DataContext.SelectedSession.CloseFileCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Foreground" Value="Red"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </DockPanel>
+                </Border>
+                <!-- Edit/Diff mode toggle -->
+                <Border Grid.Row="1" Background="{Binding Theme.SurfaceBg}" Padding="4,2">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="📝 Edit" Margin="0,0,4,0" Padding="10,3" Cursor="Hand"
+                                Click="ShowEditView_Click"
+                                Foreground="{Binding Theme.Foreground}" BorderThickness="0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" CornerRadius="3" Padding="{TemplateBinding Padding}"
+                                            Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{Binding DataContext.Theme.ButtonHoverBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <Button Content="📊 Diff" Padding="10,3" Cursor="Hand"
+                                Click="ShowDiffView_Click"
+                                Foreground="{Binding Theme.Foreground}" BorderThickness="0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" CornerRadius="3" Padding="{TemplateBinding Padding}"
+                                            Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{Binding DataContext.Theme.ButtonHoverBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <Button Content="💾 Save" Margin="16,0,0,0" Padding="10,3" Cursor="Hand"
+                                Foreground="{Binding Theme.Foreground}" BorderThickness="0"
+                                Command="{Binding SelectedSession.SaveFileCommand}"
+                                CommandParameter="{Binding SelectedSession.SelectedFile}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="Bd" CornerRadius="3" Padding="{TemplateBinding Padding}"
+                                            Background="{Binding DataContext.Theme.ButtonBg, RelativeSource={RelativeSource AncestorType=Window}}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{Binding DataContext.Theme.ButtonHoverBg, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <TextBlock Margin="16,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{Binding Theme.DimForeground}" FontSize="11"
+                                   Text="{Binding SelectedSession.SelectedFile.RelativePath}"/>
                     </StackPanel>
                 </Border>
-                <TextBox Grid.Row="1"
-                         Text="{Binding SelectedSession.SelectedFile.Content, UpdateSourceTrigger=PropertyChanged}"
-                         AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
-                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
-                         FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
-                         Background="{Binding Theme.EditorBg}"
-                         Foreground="{Binding Theme.Foreground}"
-                         CaretBrush="{Binding Theme.Foreground}"
-                         BorderThickness="0" Padding="8,4"/>
+                <!-- Editor content area -->
+                <Grid Grid.Row="2">
+                    <!-- AvalonEdit editor (shown in Edit mode) -->
+                    <avalonEdit:TextEditor x:Name="AvalonEditor"
+                                           FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                                           Background="{Binding Theme.EditorBg}"
+                                           Foreground="{Binding Theme.Foreground}"
+                                           ShowLineNumbers="True"
+                                           WordWrap="True"
+                                           HorizontalScrollBarVisibility="Auto"
+                                           VerticalScrollBarVisibility="Auto"
+                                           BorderThickness="0" Padding="4"/>
+                    <!-- Diff view (shown in Diff mode) -->
+                    <Grid x:Name="DiffViewPanel" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <!-- Original (HEAD) -->
+                        <Grid Grid.Column="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Background="{Binding Theme.PanelBg}" Padding="8,4">
+                                <TextBlock Text="Original (HEAD)" Foreground="{Binding Theme.DimForeground}" FontSize="11" FontWeight="SemiBold"/>
+                            </Border>
+                            <avalonEdit:TextEditor x:Name="DiffOriginalEditor" Grid.Row="1"
+                                                   FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                                                   Background="{Binding Theme.EditorBg}"
+                                                   Foreground="{Binding Theme.DimForeground}"
+                                                   ShowLineNumbers="True" IsReadOnly="True"
+                                                   HorizontalScrollBarVisibility="Auto"
+                                                   VerticalScrollBarVisibility="Auto"
+                                                   BorderThickness="0" Padding="4"/>
+                        </Grid>
+                        <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch"
+                                      Background="{Binding Theme.BorderBrush}"/>
+                        <!-- Modified (current) -->
+                        <Grid Grid.Column="2">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Border Grid.Row="0" Background="{Binding Theme.PanelBg}" Padding="8,4">
+                                <TextBlock Text="Modified (current)" Foreground="{Binding Theme.DimForeground}" FontSize="11" FontWeight="SemiBold"/>
+                            </Border>
+                            <avalonEdit:TextEditor x:Name="DiffModifiedEditor" Grid.Row="1"
+                                                   FontFamily="Cascadia Code,Consolas,Courier New" FontSize="13"
+                                                   Background="{Binding Theme.EditorBg}"
+                                                   Foreground="{Binding Theme.Foreground}"
+                                                   ShowLineNumbers="True" IsReadOnly="True"
+                                                   HorizontalScrollBarVisibility="Auto"
+                                                   VerticalScrollBarVisibility="Auto"
+                                                   BorderThickness="0" Padding="4"/>
+                        </Grid>
+                    </Grid>
+                </Grid>
             </Grid>
 
             <!-- Placeholder when no session -->

@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using CopilotHub.App.Controls;
@@ -18,20 +19,32 @@ public partial class MainWindow : Window
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
         if (ViewModel is not null)
+        {
             ViewModel.ConsoleSwapRequested += OnConsoleSwapRequested;
+            ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        }
         UpdateVisibility();
     }
 
     private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
     {
-        // Kill all session processes on close
+        // Save any pending editor content before closing
+        SyncEditorToModel();
+
         if (ViewModel is not null)
         {
             ViewModel.ConsoleSwapRequested -= OnConsoleSwapRequested;
+            ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
             foreach (var session in ViewModel.Sessions)
                 session.KillAllProcesses();
         }
         ConsoleHost.ReleaseConsole();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.SelectedSession))
+            Dispatcher.Invoke(LoadEditorForSelectedFile);
     }
 
     private void OnConsoleSwapRequested()
@@ -76,6 +89,7 @@ public partial class MainWindow : Window
     {
         if (sender is FrameworkElement fe && fe.DataContext is SessionTabViewModel tab && ViewModel is not null)
         {
+            SyncEditorToModel();
             ViewModel.SelectedSession = tab;
         }
     }
@@ -92,8 +106,74 @@ public partial class MainWindow : Window
     {
         if (ViewModel?.SelectedSession is not null)
         {
+            SyncEditorToModel();
             ViewModel.SelectedSession.IsFileEditorActive = false;
             SwapToActiveConsole();
+        }
+    }
+
+    private void FileTab_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is OpenFileTab file && ViewModel?.SelectedSession is not null)
+        {
+            SyncEditorToModel();
+            ViewModel.SelectedSession.SelectedFile = file;
+            LoadEditorForSelectedFile();
+        }
+    }
+
+    private void ShowEditView_Click(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.SelectedSession?.SelectedFile is not null)
+            ViewModel.SelectedSession.SelectedFile.IsDiffView = false;
+        AvalonEditor.Visibility = Visibility.Visible;
+        DiffViewPanel.Visibility = Visibility.Collapsed;
+    }
+
+    private void ShowDiffView_Click(object sender, RoutedEventArgs e)
+    {
+        SyncEditorToModel();
+        var file = ViewModel?.SelectedSession?.SelectedFile;
+        if (file is null) return;
+
+        file.IsDiffView = true;
+        AvalonEditor.Visibility = Visibility.Collapsed;
+        DiffViewPanel.Visibility = Visibility.Visible;
+
+        DiffOriginalEditor.Text = file.OriginalContent;
+        DiffModifiedEditor.Text = file.Content;
+    }
+
+    /// <summary>Load the currently selected file into the AvalonEdit editor.</summary>
+    private void LoadEditorForSelectedFile()
+    {
+        var file = ViewModel?.SelectedSession?.SelectedFile;
+        if (file is null) return;
+
+        if (file.IsDiffView)
+        {
+            AvalonEditor.Visibility = Visibility.Collapsed;
+            DiffViewPanel.Visibility = Visibility.Visible;
+            DiffOriginalEditor.Text = file.OriginalContent;
+            DiffModifiedEditor.Text = file.Content;
+        }
+        else
+        {
+            AvalonEditor.Visibility = Visibility.Visible;
+            DiffViewPanel.Visibility = Visibility.Collapsed;
+            AvalonEditor.Text = file.Content;
+        }
+    }
+
+    /// <summary>Sync AvalonEdit text back to the view model.</summary>
+    private void SyncEditorToModel()
+    {
+        var file = ViewModel?.SelectedSession?.SelectedFile;
+        if (file is not null && !file.IsDiffView)
+        {
+            var editorText = AvalonEditor.Text;
+            if (editorText != file.Content)
+                file.Content = editorText;
         }
     }
 }
